@@ -58,3 +58,11 @@ function render(){
   el.innerHTML=h;
 }
 render();
+
+// Daftarkan service worker supaya aplikasi bisa di-install dan jalan offline.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+  }
+                         
