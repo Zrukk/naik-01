@@ -19,3 +19,26 @@ window.TASKS = [
   { id: 'd3', level: 4, title: 'Selesaikan 1 bab buku', hint: 'Tandai progresnya.' },
   { id: 'd4', level: 4, title: 'Hubungi 1 orang penting', hint: 'Jaga hubungan.' },
 ];
+
+window.AFFIRMATIONS = [
+  'Konsisten > sempurna.',
+  'Satu langkah kecil tetap langkah.',
+  'Kamu baru saja menang hari ini.',
+  'Perubahan besar dimulai dari 0,1%.',
+  'Otakmu berterima kasih.',
+  'Identitas barumu terbentuk.',
+  'Ini bukan kebetulan — ini pilihan.',
+  'Besok kamu akan bangga.',
+  'Momentum sudah dimulai.',
+  'Kecil, tapi nyata.',
+  'Kamu lebih kuat dari kemarin.',
+  'Ini bukti kamu bisa.',
+  'Streak bukan angka — ini cerita.',
+  'Terus begini, hidupmu berubah.',
+  'Investasi terbaik: 5 menit hari ini.',
+  'Bukan motivasi, tapi disiplin.',
+  'Hari ini kamu hadir. Itu cukup.',
+  'Perlahan tapi pasti.',
+  'Kamu sedang membangun sesuatu.',
+  'Satu hari tidak menentukan, tapi kebiasaan iya.',
+];
