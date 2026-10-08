@@ -222,3 +222,29 @@ main { display: grid; gap: 14px; }
   .stat-value { font-size: 20px; }
   .btn { font-size: 14px; padding: 10px 12px; }
   }
+/* ---------- View Transition (theme toggle) ---------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* Jangan ikut ditransisikan supaya ikon emoji tidak "ghosting" */
+#themeBtn {
+  view-transition-name: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
