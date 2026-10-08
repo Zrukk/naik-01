@@ -4,7 +4,6 @@
   const KEY = 'naik01';
   const THEME_KEY = 'naik01-theme';
 
-  // ---------- State ----------
   const defaultState = () => ({
     date: todayStr(),
     currentTaskId: null,
@@ -15,15 +14,13 @@
     lastDoneDate: null,
     previousTaskId: null,
     history: [],
-    notes: {}, // { 'YYYY-MM-DD': 'text' }
+    notes: {},
   });
 
   function dateKey(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
-
   function todayStr() { return dateKey(new Date()); }
-
   function yesterdayStr() {
     const d = new Date();
     d.setDate(d.getDate() - 1);
@@ -33,9 +30,7 @@
   function migrate(s) {
     if (!Array.isArray(s.history)) s.history = [];
     if (typeof s.longestStreak !== 'number') s.longestStreak = s.streak || 0;
-    if (s.lastDoneDate && !s.history.includes(s.lastDoneDate)) {
-      s.history.push(s.lastDoneDate);
-    }
+    if (s.lastDoneDate && !s.history.includes(s.lastDoneDate)) s.history.push(s.lastDoneDate);
     if (!s.notes || typeof s.notes !== 'object') s.notes = {};
     return s;
   }
@@ -46,22 +41,16 @@
       if (!raw) return defaultState();
       const s = JSON.parse(raw);
       return migrate(Object.assign(defaultState(), s));
-    } catch {
-      return defaultState();
-    }
+    } catch { return defaultState(); }
   }
 
   function saveState(s) {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(s));
-    } catch (e) {
-      showMsg('Gagal menyimpan data.');
-    }
+    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+    catch { showMsg('Gagal menyimpan data.'); }
   }
 
   let S = loadState();
 
-  // ---------- DOM ----------
   const $ = (id) => document.getElementById(id);
   const elTitle   = $('taskTitle');
   const elHint    = $('taskHint');
@@ -76,15 +65,15 @@
   const elNote    = $('noteInput');
   const elNoteSaved = $('noteSaved');
   const elNoteCount = $('noteCount');
+  const elAffirm  = $('affirm');
+  const elAffirmText = $('affirmText');
+  const elAffirmStreak = $('affirmStreak');
 
   // ---------- Helpers ----------
   function levelFor(total) {
     return Math.min(4, 1 + Math.floor(total / 7));
   }
-
-  function isDoneToday() {
-    return S.lastDoneDate === todayStr();
-  }
+  function isDoneToday() { return S.lastDoneDate === todayStr(); }
 
   function pickTask(level, excludeId) {
     const pool = window.TASKS.filter(t => t.level === level && t.id !== excludeId);
@@ -100,13 +89,11 @@
       S.usedIds = [];
       S.currentTaskId = null;
     }
-
     if (isDoneToday()) {
       S.currentTaskId = null;
       saveState(S);
       return;
     }
-
     if (!S.currentTaskId) {
       const lvl = levelFor(S.total);
       const t = pickTask(lvl, null);
@@ -122,14 +109,50 @@
     return window.TASKS.find(t => t.id === S.currentTaskId) || null;
   }
 
+  // ---------- Affirmation ----------
+  let affirmTimer = null;
+
+  function pickAffirmation() {
+    const arr = window.AFFIRMATIONS || [];
+    if (!arr.length) return 'Mantap!';
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function showAffirmation() {
+    if (!elAffirm) return;
+
+    elAffirmText.textContent = pickAffirmation();
+    elAffirmStreak.textContent = S.streak > 1
+      ? `${S.streak} hari berturut-turut 🔥`
+      : 'Hari pertama dari yang baru ✨';
+
+    elAffirm.hidden = false;
+    elAffirm.classList.remove('closing');
+
+    clearTimeout(affirmTimer);
+    affirmTimer = setTimeout(hideAffirmation, 2500);
+  }
+
+  function hideAffirmation() {
+    if (!elAffirm || elAffirm.hidden) return;
+    elAffirm.classList.add('closing');
+    clearTimeout(affirmTimer);
+    affirmTimer = setTimeout(() => {
+      elAffirm.hidden = true;
+      elAffirm.classList.remove('closing');
+    }, 220);
+  }
+
+  if (elAffirm) {
+    elAffirm.addEventListener('click', hideAffirmation);
+  }
+
   // ---------- Notes ----------
   function pruneNotes() {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 90);
     const cutoffKey = dateKey(cutoff);
-    Object.keys(S.notes).forEach(k => {
-      if (k < cutoffKey) delete S.notes[k];
-    });
+    Object.keys(S.notes).forEach(k => { if (k < cutoffKey) delete S.notes[k]; });
   }
 
   function setNote(text) {
@@ -152,14 +175,12 @@
     elNoteCount.textContent = `${elNote.value.length}/500`;
   }
 
-  let noteTimer = null;
-  let savedTimer = null;
+  let noteTimer = null, savedTimer = null;
 
   function onNoteInput() {
     updateNoteCount();
     elNoteSaved.textContent = 'Menulis…';
     elNoteSaved.classList.remove('saved');
-
     clearTimeout(noteTimer);
     noteTimer = setTimeout(() => {
       setNote(elNote.value);
@@ -192,13 +213,10 @@
 
   function renderHeatmap() {
     if (!elHeat) return;
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     const startOfThisWeek = new Date(today);
     startOfThisWeek.setDate(today.getDate() - today.getDay());
-
     const startDate = new Date(startOfThisWeek);
     startDate.setDate(startOfThisWeek.getDate() - 11 * 7);
 
@@ -210,20 +228,15 @@
       const d = new Date(startDate);
       d.setDate(startDate.getDate() + i);
       const key = dateKey(d);
-
       const cell = document.createElement('div');
       cell.className = 'cell';
-
       const note = S.notes && S.notes[key];
       cell.title = note ? `${key}\n\n${note}` : key;
-
       if (key === todayKey) cell.classList.add('today');
       if (d > today) cell.classList.add('future');
       else if (historySet.has(key)) cell.classList.add('done');
-
       frag.appendChild(cell);
     }
-
     elHeat.innerHTML = '';
     elHeat.appendChild(frag);
 
@@ -281,7 +294,7 @@
     S.currentTaskId = null;
     saveState(S);
     render();
-    showMsg(`Mantap! Streak: ${S.streak} 🔥`);
+    showAffirmation();
   }
 
   function actSwap() {
@@ -328,18 +341,13 @@
     if (saved) document.documentElement.dataset.theme = saved;
     syncThemeIcon();
   }
-
   function isDark() {
     const t = document.documentElement.dataset.theme;
     if (t === 'dark') return true;
     if (t === 'light') return false;
     return matchMedia('(prefers-color-scheme: dark)').matches;
   }
-
-  function syncThemeIcon() {
-    themeBtn.textContent = isDark() ? '☀️' : '🌙';
-  }
-
+  function syncThemeIcon() { themeBtn.textContent = isDark() ? '☀️' : '🌙'; }
   function setTheme(next) {
     document.documentElement.dataset.theme = next;
     localStorage.setItem(THEME_KEY, next);
@@ -348,12 +356,10 @@
 
   themeBtn.addEventListener('click', () => {
     const next = isDark() ? 'light' : 'dark';
-
     if (!document.startViewTransition || prefersReducedMotion.matches) {
       setTheme(next);
       return;
     }
-
     const rect = themeBtn.getBoundingClientRect();
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
@@ -361,17 +367,13 @@
       Math.max(x, window.innerWidth - x),
       Math.max(y, window.innerHeight - y)
     );
-
     const transition = document.startViewTransition(() => setTheme(next));
-
     transition.ready.then(() => {
       document.documentElement.animate(
-        {
-          clipPath: [
-            `circle(0px at ${x}px ${y}px)`,
-            `circle(${endRadius}px at ${x}px ${y}px)`
-          ]
-        },
+        { clipPath: [
+          `circle(0px at ${x}px ${y}px)`,
+          `circle(${endRadius}px at ${x}px ${y}px)`
+        ] },
         {
           duration: 550,
           easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
@@ -413,9 +415,7 @@
         localStorage.setItem(KEY, JSON.stringify(parsed));
         showMsg('Data diimpor. Memuat ulang…');
         setTimeout(() => location.reload(), 500);
-      } catch {
-        showMsg('File tidak valid.');
-      }
+      } catch { showMsg('File tidak valid.'); }
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -441,7 +441,7 @@
     }
   }, 60 * 1000);
 
-  // ---------- Service Worker ----------
+  // ---------- SW ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').catch(() => {});
