@@ -1,4 +1,4 @@
-const CACHE = 'naik01-v3';
+const CACHE = 'naik01-v4';
 
 const ASSETS = [
   './',
