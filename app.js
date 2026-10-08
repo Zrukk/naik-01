@@ -1,68 +1,258 @@
-// Logika aplikasi.
-var LV=["Ringan","Sedang","Menantang"],KEY="naik01",S=null,msg="";
-try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-function key(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
-function today(){return key(new Date())}
-function count(){return Object.keys(S.days).length}
-function streak(){var d=new Date(),n=0;if(!S.days[key(d)])d.setDate(d.getDate()-1);while(S.days[key(d)]){n++;d.setDate(d.getDate()-1)}return n}
-function newTask(){
-  var list=T[S.area].t[S.level],i,last=S.cur?S.cur.i:-1,tries=0;
-  do{i=Math.floor(Math.random()*list.length);tries++}while(i===last&&tries<20);
-  S.cur={d:today(),i:i,l:S.level};save();
-}
-function start(a){S={area:a,level:0,days:{},cur:null,run:0};newTask();msg="";render()}
-function finish(){
-  if(S.days[today()])return;
-  S.days[today()]=1;S.run=(S.run||0)+1;msg="";
-  if(S.run>=3&&S.level<2){S.level++;S.run=0;msg="Tiga hari berturut-turut. Besok tugasmu naik ke level "+LV[S.level]+"."}
-  save();render();
-}
-function swap(){if(S.days[today()])return;S.level=S.cur.l;newTask();msg="";render()}
-function hard(){
-  if(S.days[today()])return;
-  var prev=S.cur.l;
-  S.level=Math.max(0,prev-1);S.run=0;newTask();
-  msg=prev===0?"Sudah level paling ringan. Mulai dari yang kecil, itu cukup.":"Tugas diturunkan ke level "+LV[S.level]+".";
-  render();
-}
-function pick(){if(confirm("Ganti bidang? Progresmu tetap tersimpan."))
-  {var o=S;S=null;window._old=o;render()}}
-function back(a){S=window._old;S.area=a;S.level=0;S.run=0;newTask();msg="";render()}
-function reset(){if(confirm("Hapus semua progres dan mulai dari awal?")){S=null;window._old=null;try{localStorage.removeItem(KEY)}catch(e){}render()}}
-function render(){
-  var el=document.getElementById("app"),h="";
-  if(!S){
-    var fn=window._old?"back":"start";
-    h='<p class="lbl">Naik 0,1% setiap hari</p><h1 class="big" style="font-size:2.4rem;line-height:1.1">Pilih satu bidang untuk diperbaiki dulu.</h1><div class="opts">';
-    for(var k in T)h+='<button onclick="'+fn+"('"+k+"')\">"+T[k].n+"<small>"+T[k].d+"</small></button>";
-    h+='</div><p class="note">Satu tugas kecil per hari. Hasilnya tersimpan di perangkat ini.</p>';
-    el.innerHTML=h;return;
-  }
-  if(!S.cur||S.cur.d!==today()){newTask()}
-  var c=count(),score=100*Math.pow(1.001,c),done=!!S.days[today()],task=T[S.area].t[S.cur.l][S.cur.i];
-  h='<p class="lbl">Nilai kamu</p><div class="big">'+score.toFixed(2).replace(".",",")+'</div>'
-   +'<p class="sub">Mulai dari 100. Tiap hari selesai dikali 1,001. Sudah '+c+' hari.</p>';
-  h+='<section class="card"><span class="tag">'+T[S.area].n+', level '+LV[S.cur.l]+'</span>';
-  if(done){
-    h+='<h2>'+task+'</h2><p class="done">Selesai. Sampai besok.</p><p class="sub">Tugas baru muncul besok.</p>';
-  }else{
-    h+='<h2>'+task+'</h2><div class="row"><button class="p" onclick="finish()">Sudah kukerjakan</button><button onclick="swap()">Ganti tugas</button></div>'
-     +'<div style="margin-top:10px"><button class="link" onclick="hard()">Terlalu sulit hari ini</button></div>';
-  }
-  h+='</section><div class="msg" role="status">'+msg+'</div>';
-  h+='<div class="stats"><div><b>'+streak()+'</b><span class="lbl">hari beruntun</span></div><div><b>'+LV[S.level]+'</b><span class="lbl">level sekarang</span></div></div>';
-  h+='<p class="lbl" style="margin-top:28px">14 hari terakhir</p><div class="grid">';
-  for(var i=13;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);h+='<i class="'+(S.days[key(d)]?"on":"")+(i===0?" today":"")+'"></i>'}
-  h+='</div><div class="foot"><button class="link" onclick="pick()">Ganti bidang</button><button class="link" onclick="reset()">Mulai dari awal</button></div>';
-  el.innerHTML=h;
-}
-render();
+(() => {
+  'use strict';
 
-// Daftarkan service worker supaya aplikasi bisa di-install dan jalan offline.
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function () {
-    navigator.serviceWorker.register("sw.js").catch(function () {});
+  const KEY = 'naik01';
+  const THEME_KEY = 'naik01-theme';
+
+  // ---------- State ----------
+  const defaultState = () => ({
+    date: todayStr(),
+    currentTaskId: null,
+    usedIds: [],
+    streak: 0,
+    total: 0,
+    lastDoneDate: null,
+    previousTaskId: null,
   });
+
+  function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
-                         
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return defaultState();
+      const s = JSON.parse(raw);
+      return Object.assign(defaultState(), s);
+    } catch {
+      return defaultState();
+    }
+  }
+
+  function saveState(s) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(s));
+    } catch (e) {
+      showMsg('Gagal menyimpan data.');
+    }
+  }
+
+  let S = loadState();
+
+  // ---------- DOM ----------
+  const $ = (id) => document.getElementById(id);
+  const elTitle = $('taskTitle');
+  const elHint  = $('taskHint');
+  const elStreak = $('streak');
+  const elTotal  = $('total');
+  const elLevel  = $('level');
+  const elMsg    = $('msg');
+  const taskCard = $('taskCard');
+
+  // ---------- Helpers ----------
+  function levelFor(total) {
+    return Math.min(4, 1 + Math.floor(total / 7));
+  }
+
+  function pickTask(level) {
+    const pool = window.TASKS.filter(t => t.level === level);
+    const fresh = pool.filter(t => !S.usedIds.includes(t.id));
+    const arr = fresh.length ? fresh : pool;
+    if (!arr.length) return null;
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function ensureTaskForToday() {
+    if (S.date !== todayStr()) {
+      // hari baru
+      S.date = todayStr();
+      S.usedIds = [];
+      S.currentTaskId = null;
+    }
+    if (!S.currentTaskId) {
+      const lvl = levelFor(S.total);
+      const t = pickTask(lvl);
+      if (t) {
+        S.currentTaskId = t.id;
+        if (!S.usedIds.includes(t.id)) S.usedIds.push(t.id);
+      }
+    }
+    saveState(S);
+  }
+
+  function currentTask() {
+    return window.TASKS.find(t => t.id === S.currentTaskId) || null;
+  }
+
+  // ---------- Render ----------
+  function render() {
+    const t = currentTask();
+    if (!t) {
+      elTitle.textContent = 'Tidak ada tugas tersedia';
+      elHint.textContent = 'Coba reset atau tambah data.';
+    } else {
+      elTitle.textContent = t.title;
+      elHint.textContent = t.hint || '';
+    }
+    elStreak.textContent = S.streak;
+    elTotal.textContent = S.total;
+    elLevel.textContent = levelFor(S.total);
+  }
+
+  function showMsg(text) {
+    elMsg.textContent = text;
+    elMsg.classList.add('show');
+    clearTimeout(showMsg._t);
+    showMsg._t = setTimeout(() => elMsg.classList.remove('show'), 2200);
+  }
+
+  // ---------- Actions ----------
+  function actDone() {
+    if (!S.currentTaskId) return;
+    if (S.lastDoneDate === todayStr()) {
+      showMsg('Hari ini sudah selesai 👍');
+      return;
+    }
+    const yesterday = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    })();
+
+    S.streak = (S.lastDoneDate === yesterday) ? S.streak + 1 : 1;
+    S.lastDoneDate = todayStr();
+    S.total += 1;
+    saveState(S);
+
+    // Siapkan tugas berikutnya
+    S.currentTaskId = null;
+    ensureTaskForToday();
+    render();
+    showMsg(`Mantap! Streak: ${S.streak} 🔥`);
+  }
+
+  function actSwap() {
+    const lvl = levelFor(S.total);
+    const pool = window.TASKS.filter(t => t.level === lvl && t.id !== S.currentTaskId);
+    if (!pool.length) { showMsg('Tidak ada tugas lain.'); return; }
+    // hindari yang sudah pernah hari ini kalau bisa
+    const fresh = pool.filter(t => !S.usedIds.includes(t.id));
+    const arr = fresh.length ? fresh : pool;
+    const t = arr[Math.floor(Math.random() * arr.length)];
+    S.previousTaskId = S.currentTaskId;
+    S.currentTaskId = t.id;
+    if (!S.usedIds.includes(t.id)) S.usedIds.push(t.id);
+    saveState(S);
+    render();
+    showMsg('Tugas diganti.');
+  }
+
+  function actHard() {
+    showMsg('Oke, turunkan level dulu ya.');
+    // paksa tugas level lebih rendah
+    const lvl = Math.max(1, levelFor(S.total) - 1);
+    const pool = window.TASKS.filter(t => t.level === lvl);
+    if (!pool.length) return;
+    const t = pool[Math.floor(Math.random() * pool.length)];
+    S.currentTaskId = t.id;
+    if (!S.usedIds.includes(t.id)) S.usedIds.push(t.id);
+    saveState(S);
+    render();
+  }
+
+  taskCard.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    if (act === 'done') actDone();
+    else if (act === 'swap') actSwap();
+    else if (act === 'hard') actHard();
+  });
+
+  // ---------- Theme ----------
+  const themeBtn = $('themeBtn');
+
+  function applySavedTheme() {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved) document.documentElement.dataset.theme = saved;
+    syncThemeIcon();
+  }
+
+  function isDark() {
+    const t = document.documentElement.dataset.theme;
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function syncThemeIcon() {
+    themeBtn.textContent = isDark() ? '☀️' : '🌙';
+  }
+
+  themeBtn.addEventListener('click', () => {
+    const next = isDark() ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem(THEME_KEY, next);
+    syncThemeIcon();
+  });
+
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!localStorage.getItem(THEME_KEY)) syncThemeIcon();
+  });
+
+  // ---------- Export / Import / Reset ----------
+  $('exportBtn').addEventListener('click', () => {
+    const data = localStorage.getItem(KEY) || '{}';
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `naik01-backup-${todayStr()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showMsg('Data diekspor.');
+  });
+
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+
+  $('importFile').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (typeof parsed !== 'object' || parsed === null) throw new Error('bad');
+        localStorage.setItem(KEY, JSON.stringify(parsed));
+        showMsg('Data diimpor. Memuat ulang…');
+        setTimeout(() => location.reload(), 500);
+      } catch {
+        showMsg('File tidak valid.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  $('resetBtn').addEventListener('click', () => {
+    if (!confirm('Reset semua data? Tindakan ini tidak bisa dibatalkan.')) return;
+    localStorage.removeItem(KEY);
+    location.reload();
+  });
+
+  // ---------- Init ----------
+  applySavedTheme();
+  ensureTaskForToday();
+  render();
+
+  // ---------- Service Worker ----------
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+})();
