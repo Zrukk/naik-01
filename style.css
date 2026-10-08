@@ -324,3 +324,80 @@ main { display: grid; gap: 14px; }
   color: var(--accent);
   font-weight: 600;
 }
+/* ---------- Affirmation overlay ---------- */
+.affirm {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 200;
+  cursor: pointer;
+  animation: affirmIn .28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.affirm[hidden] { display: none; }
+
+.affirm-inner {
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  padding: 28px 22px;
+  border-radius: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+  transform-origin: center;
+  animation: affirmPop .38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.affirm-text {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: var(--fg);
+}
+
+.affirm-streak {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+@keyframes affirmIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes affirmPop {
+  0%   { transform: scale(0.92) translateY(8px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.affirm.closing {
+  animation: affirmOut .22s ease forwards;
+}
+.affirm.closing .affirm-inner {
+  animation: affirmPopOut .22s ease forwards;
+}
+
+@keyframes affirmOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes affirmPopOut {
+  from { transform: scale(1); opacity: 1; }
+  to   { transform: scale(0.96); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .affirm, .affirm-inner, .affirm.closing, .affirm.closing .affirm-inner {
+    animation: none !important;
+  }
+}
