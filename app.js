@@ -14,16 +14,15 @@
     total: 0,
     lastDoneDate: null,
     previousTaskId: null,
-    history: [], // array tanggal YYYY-MM-DD yang selesai
+    history: [],
+    notes: {}, // { 'YYYY-MM-DD': 'text' }
   });
 
   function dateKey(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
-  function todayStr() {
-    return dateKey(new Date());
-  }
+  function todayStr() { return dateKey(new Date()); }
 
   function yesterdayStr() {
     const d = new Date();
@@ -37,6 +36,7 @@
     if (s.lastDoneDate && !s.history.includes(s.lastDoneDate)) {
       s.history.push(s.lastDoneDate);
     }
+    if (!s.notes || typeof s.notes !== 'object') s.notes = {};
     return s;
   }
 
@@ -63,16 +63,19 @@
 
   // ---------- DOM ----------
   const $ = (id) => document.getElementById(id);
-  const elTitle  = $('taskTitle');
-  const elHint   = $('taskHint');
-  const elStreak = $('streak');
-  const elTotal  = $('total');
-  const elLevel  = $('level');
-  const elMsg    = $('msg');
-  const taskCard = $('taskCard');
-  const elHeat   = $('heatmap');
+  const elTitle   = $('taskTitle');
+  const elHint    = $('taskHint');
+  const elStreak  = $('streak');
+  const elTotal   = $('total');
+  const elLevel   = $('level');
+  const elMsg     = $('msg');
+  const taskCard  = $('taskCard');
+  const elHeat    = $('heatmap');
   const elHmTotal = $('hmTotal');
-  const elHmLongest = $('hmLongest');
+  const elHmLong  = $('hmLongest');
+  const elNote    = $('noteInput');
+  const elNoteSaved = $('noteSaved');
+  const elNoteCount = $('noteCount');
 
   // ---------- Helpers ----------
   function levelFor(total) {
@@ -119,22 +122,70 @@
     return window.TASKS.find(t => t.id === S.currentTaskId) || null;
   }
 
+  // ---------- Notes ----------
+  function pruneNotes() {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    const cutoffKey = dateKey(cutoff);
+    Object.keys(S.notes).forEach(k => {
+      if (k < cutoffKey) delete S.notes[k];
+    });
+  }
+
+  function setNote(text) {
+    if (!S.notes) S.notes = {};
+    const key = todayStr();
+    if (text.trim()) S.notes[key] = text;
+    else delete S.notes[key];
+    pruneNotes();
+    saveState(S);
+  }
+
+  function loadNoteForToday() {
+    if (!elNote) return;
+    elNote.value = (S.notes && S.notes[todayStr()]) || '';
+    updateNoteCount();
+  }
+
+  function updateNoteCount() {
+    if (!elNoteCount || !elNote) return;
+    elNoteCount.textContent = `${elNote.value.length}/500`;
+  }
+
+  let noteTimer = null;
+  let savedTimer = null;
+
+  function onNoteInput() {
+    updateNoteCount();
+    elNoteSaved.textContent = 'Menulis…';
+    elNoteSaved.classList.remove('saved');
+
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => {
+      setNote(elNote.value);
+      elNoteSaved.textContent = 'Tersimpan ✓';
+      elNoteSaved.classList.add('saved');
+      clearTimeout(savedTimer);
+      savedTimer = setTimeout(() => {
+        elNoteSaved.textContent = 'Tersimpan otomatis';
+        elNoteSaved.classList.remove('saved');
+      }, 1400);
+    }, 400);
+  }
+
+  if (elNote) elNote.addEventListener('input', onNoteInput);
+
   // ---------- Heatmap ----------
   function computeLongestStreak(history) {
     if (!history || !history.length) return 0;
     const sorted = [...history].sort();
-    let longest = 1;
-    let cur = 1;
+    let longest = 1, cur = 1;
     for (let i = 1; i < sorted.length; i++) {
       const prev = new Date(sorted[i-1] + 'T00:00:00');
       const now  = new Date(sorted[i]   + 'T00:00:00');
       const diff = Math.round((now - prev) / 86400000);
-      if (diff === 1) {
-        cur += 1;
-        if (cur > longest) longest = cur;
-      } else if (diff > 1) {
-        cur = 1;
-      }
+      if (diff === 1) { cur += 1; if (cur > longest) longest = cur; }
+      else if (diff > 1) { cur = 1; }
     }
     return longest;
   }
@@ -145,11 +196,9 @@
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Awal minggu = Minggu (getDay() === 0)
     const startOfThisWeek = new Date(today);
     startOfThisWeek.setDate(today.getDate() - today.getDay());
 
-    // Mulai 11 minggu sebelum minggu ini = 12 kolom total
     const startDate = new Date(startOfThisWeek);
     startDate.setDate(startOfThisWeek.getDate() - 11 * 7);
 
@@ -164,14 +213,14 @@
 
       const cell = document.createElement('div');
       cell.className = 'cell';
-      cell.title = key;
+
+      const note = S.notes && S.notes[key];
+      cell.title = note ? `${key}\n\n${note}` : key;
 
       if (key === todayKey) cell.classList.add('today');
-      if (d > today) {
-        cell.classList.add('future');
-      } else if (historySet.has(key)) {
-        cell.classList.add('done');
-      }
+      if (d > today) cell.classList.add('future');
+      else if (historySet.has(key)) cell.classList.add('done');
+
       frag.appendChild(cell);
     }
 
@@ -179,7 +228,7 @@
     elHeat.appendChild(frag);
 
     if (elHmTotal) elHmTotal.textContent = `${S.history.length} hari`;
-    if (elHmLongest) elHmLongest.textContent = `Rekor: ${computeLongestStreak(S.history)}`;
+    if (elHmLong) elHmLong.textContent = `Rekor: ${computeLongestStreak(S.history)}`;
   }
 
   // ---------- Render ----------
@@ -221,10 +270,7 @@
 
   // ---------- Actions ----------
   function actDone() {
-    if (isDoneToday()) {
-      showMsg('Hari ini sudah selesai 👍');
-      return;
-    }
+    if (isDoneToday()) { showMsg('Hari ini sudah selesai 👍'); return; }
     if (!S.currentTaskId) return;
 
     S.streak = (S.lastDoneDate === yesterdayStr()) ? S.streak + 1 : 1;
@@ -384,11 +430,13 @@
   // ---------- Init ----------
   applySavedTheme();
   ensureTaskForToday();
+  loadNoteForToday();
   render();
 
   setInterval(() => {
     if (S.date !== todayStr()) {
       ensureTaskForToday();
+      loadNoteForToday();
       render();
     }
   }, 60 * 1000);
