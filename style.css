@@ -137,13 +137,20 @@ main { display: grid; gap: 14px; }
 
 .btn.danger { color: var(--danger); }
 
+.btn.danger-solid {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.btn.danger-solid:hover:not(:disabled) { filter: brightness(1.08); }
+
 .btn:disabled {
   opacity: .5;
   cursor: not-allowed;
   filter: none !important;
 }
 
-/* ---------- Ghost button (theme toggle) ---------- */
+/* ---------- Ghost ---------- */
 .ghost {
   background: transparent;
   border: 1px solid var(--line);
@@ -183,10 +190,7 @@ main { display: grid; gap: 14px; }
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, var(--card));
 }
-
-.card.is-done .task-title {
-  color: var(--accent);
-}
+.card.is-done .task-title { color: var(--accent); }
 
 /* ---------- Toast ---------- */
 .toast {
@@ -211,43 +215,6 @@ main { display: grid; gap: 14px; }
   transform: translateX(-50%) translateY(0);
 }
 
-/* ---------- Reduced motion ---------- */
-@media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
-}
-
-/* ---------- Small screens ---------- */
-@media (max-width: 380px) {
-  .task-title { font-size: 20px; }
-  .stat-value { font-size: 20px; }
-  .btn { font-size: 14px; padding: 10px 12px; }
-  }
-/* ---------- View Transition (theme toggle) ---------- */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
-}
-
-::view-transition-old(root) {
-  z-index: 1;
-}
-
-::view-transition-new(root) {
-  z-index: 2;
-}
-
-/* Jangan ikut ditransisikan supaya ikon emoji tidak "ghosting" */
-#themeBtn {
-  view-transition-name: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation: none !important;
-  }
-}
 /* ---------- Heatmap ---------- */
 .heatmap {
   display: grid;
@@ -259,24 +226,14 @@ main { display: grid; gap: 14px; }
   width: 100%;
   margin-top: 8px;
 }
-
 .heatmap .cell {
   border-radius: 3px;
   background: rgba(127,127,127,0.14);
   transition: transform .1s ease;
 }
-
-.heatmap .cell.done {
-  background: var(--accent);
-}
-
-.heatmap .cell.today {
-  box-shadow: 0 0 0 1.5px var(--fg) inset;
-}
-
-.heatmap .cell.future {
-  opacity: 0.35;
-}
+.heatmap .cell.done { background: var(--accent); }
+.heatmap .cell.today { box-shadow: 0 0 0 1.5px var(--fg) inset; }
+.heatmap .cell.future { opacity: 0.35; }
 
 .heatmap-footer {
   display: flex;
@@ -285,6 +242,7 @@ main { display: grid; gap: 14px; }
   color: var(--mute);
   margin-top: 10px;
 }
+
 /* ---------- Note ---------- */
 .note-input {
   width: 100%;
@@ -316,14 +274,9 @@ main { display: grid; gap: 14px; }
   margin-top: 8px;
   min-height: 16px;
 }
+#noteSaved { transition: color .2s ease; }
+#noteSaved.saved { color: var(--accent); font-weight: 600; }
 
-#noteSaved {
-  transition: color .2s ease;
-}
-#noteSaved.saved {
-  color: var(--accent);
-  font-weight: 600;
-}
 /* ---------- Affirmation overlay ---------- */
 .affirm {
   position: fixed;
@@ -339,7 +292,6 @@ main { display: grid; gap: 14px; }
   cursor: pointer;
   animation: affirmIn .28s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .affirm[hidden] { display: none; }
 
 .affirm-inner {
@@ -354,7 +306,6 @@ main { display: grid; gap: 14px; }
   transform-origin: center;
   animation: affirmPop .38s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .affirm-text {
   font-size: 20px;
   font-weight: 700;
@@ -362,7 +313,6 @@ main { display: grid; gap: 14px; }
   line-height: 1.35;
   color: var(--fg);
 }
-
 .affirm-streak {
   margin-top: 14px;
   font-size: 13px;
@@ -374,19 +324,12 @@ main { display: grid; gap: 14px; }
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-
 @keyframes affirmPop {
   0%   { transform: scale(0.92) translateY(8px); opacity: 0; }
   100% { transform: scale(1) translateY(0); opacity: 1; }
 }
-
-.affirm.closing {
-  animation: affirmOut .22s ease forwards;
-}
-.affirm.closing .affirm-inner {
-  animation: affirmPopOut .22s ease forwards;
-}
-
+.affirm.closing { animation: affirmOut .22s ease forwards; }
+.affirm.closing .affirm-inner { animation: affirmPopOut .22s ease forwards; }
 @keyframes affirmOut {
   from { opacity: 1; }
   to   { opacity: 0; }
@@ -396,8 +339,74 @@ main { display: grid; gap: 14px; }
   to   { transform: scale(0.96); opacity: 0; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .affirm, .affirm-inner, .affirm.closing, .affirm.closing .affirm-inner {
-    animation: none !important;
-  }
+/* ---------- Confirm modal ---------- */
+.confirm {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 300;
+  animation: affirmIn .2s ease;
 }
+.confirm[hidden] { display: none; }
+
+.confirm-inner {
+  max-width: 360px;
+  width: 100%;
+  padding: 22px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.22);
+  animation: affirmPop .28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.confirm-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+.confirm-msg {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--mute);
+  line-height: 1.5;
+}
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+.confirm-actions .btn { flex: 1; }
+
+.confirm.closing { animation: affirmOut .18s ease forwards; }
+.confirm.closing .confirm-inner { animation: affirmPopOut .18s ease forwards; }
+
+/* ---------- View Transition ---------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+#themeBtn { view-transition-name: none; }
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none !important; }
+}
+
+/* ---------- Small screens ---------- */
+@media (max-width: 380px) {
+  .task-title { font-size: 20px; }
+  .stat-value { font-size: 20px; }
+  .btn { font-size: 14px; padding: 10px 12px; }
+  }
