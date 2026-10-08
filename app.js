@@ -120,15 +120,12 @@
 
   function showAffirmation() {
     if (!elAffirm) return;
-
     elAffirmText.textContent = pickAffirmation();
     elAffirmStreak.textContent = S.streak > 1
       ? `${S.streak} hari berturut-turut 🔥`
       : 'Hari pertama dari yang baru ✨';
-
     elAffirm.hidden = false;
     elAffirm.classList.remove('closing');
-
     clearTimeout(affirmTimer);
     affirmTimer = setTimeout(hideAffirmation, 2500);
   }
@@ -143,9 +140,7 @@
     }, 220);
   }
 
-  if (elAffirm) {
-    elAffirm.addEventListener('click', hideAffirmation);
-  }
+  if (elAffirm) elAffirm.addEventListener('click', hideAffirmation);
 
   // ---------- Notes ----------
   function pruneNotes() {
@@ -387,6 +382,52 @@
     if (!localStorage.getItem(THEME_KEY)) syncThemeIcon();
   });
 
+  // ---------- Custom Confirm ----------
+  const elConfirm = $('confirm');
+  const elConfirmTitle = $('confirmTitle');
+  const elConfirmMsg = $('confirmMsg');
+  const elConfirmOk = $('confirmOk');
+  const elConfirmCancel = $('confirmCancel');
+
+  let confirmResolve = null;
+
+  function askConfirm({ title, message, okText = 'OK', danger = false }) {
+    return new Promise((resolve) => {
+      elConfirmTitle.textContent = title;
+      elConfirmMsg.textContent = message;
+      elConfirmOk.textContent = okText;
+      elConfirmOk.classList.toggle('danger-solid', danger);
+      elConfirm.hidden = false;
+      elConfirm.classList.remove('closing');
+      confirmResolve = resolve;
+      elConfirmOk.focus();
+    });
+  }
+
+  function closeConfirm(result) {
+    if (elConfirm.hidden) return;
+    elConfirm.classList.add('closing');
+    setTimeout(() => {
+      elConfirm.hidden = true;
+      elConfirm.classList.remove('closing');
+      if (confirmResolve) {
+        confirmResolve(result);
+        confirmResolve = null;
+      }
+    }, 180);
+  }
+
+  elConfirmOk.addEventListener('click', () => closeConfirm(true));
+  elConfirmCancel.addEventListener('click', () => closeConfirm(false));
+  elConfirm.addEventListener('click', (e) => {
+    if (e.target === elConfirm) closeConfirm(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (elConfirm.hidden) return;
+    if (e.key === 'Escape') closeConfirm(false);
+    if (e.key === 'Enter') closeConfirm(true);
+  });
+
   // ---------- Export / Import / Reset ----------
   $('exportBtn').addEventListener('click', () => {
     const data = localStorage.getItem(KEY) || '{}';
@@ -408,21 +449,35 @@
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const parsed = JSON.parse(reader.result);
         if (typeof parsed !== 'object' || parsed === null) throw new Error('bad');
+        const ok = await askConfirm({
+          title: 'Impor data?',
+          message: 'Data saat ini akan ditimpa dengan isi file backup. Lanjut?',
+          okText: 'Impor',
+        });
+        if (!ok) return;
         localStorage.setItem(KEY, JSON.stringify(parsed));
         showMsg('Data diimpor. Memuat ulang…');
         setTimeout(() => location.reload(), 500);
-      } catch { showMsg('File tidak valid.'); }
+      } catch {
+        showMsg('File tidak valid.');
+      }
     };
     reader.readAsText(file);
     e.target.value = '';
   });
 
-  $('resetBtn').addEventListener('click', () => {
-    if (!confirm('Reset semua data? Tindakan ini tidak bisa dibatalkan.')) return;
+  $('resetBtn').addEventListener('click', async () => {
+    const ok = await askConfirm({
+      title: 'Reset semua data?',
+      message: 'Streak, heatmap, dan catatanmu akan hilang. Tindakan ini tidak bisa dibatalkan.',
+      okText: 'Reset',
+      danger: true,
+    });
+    if (!ok) return;
     localStorage.removeItem(KEY);
     location.reload();
   });
