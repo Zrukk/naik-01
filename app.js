@@ -20,6 +20,12 @@
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
+  function yesterdayStr() {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
   function loadState() {
     try {
       const raw = localStorage.getItem(KEY);
@@ -43,8 +49,8 @@
 
   // ---------- DOM ----------
   const $ = (id) => document.getElementById(id);
-  const elTitle = $('taskTitle');
-  const elHint  = $('taskHint');
+  const elTitle  = $('taskTitle');
+  const elHint   = $('taskHint');
   const elStreak = $('streak');
   const elTotal  = $('total');
   const elLevel  = $('level');
@@ -56,8 +62,12 @@
     return Math.min(4, 1 + Math.floor(total / 7));
   }
 
-  function pickTask(level) {
-    const pool = window.TASKS.filter(t => t.level === level);
+  function isDoneToday() {
+    return S.lastDoneDate === todayStr();
+  }
+
+  function pickTask(level, excludeId) {
+    const pool = window.TASKS.filter(t => t.level === level && t.id !== excludeId);
     const fresh = pool.filter(t => !S.usedIds.includes(t.id));
     const arr = fresh.length ? fresh : pool;
     if (!arr.length) return null;
@@ -65,15 +75,24 @@
   }
 
   function ensureTaskForToday() {
+    // Hari berganti → reset daftar tugas harian
     if (S.date !== todayStr()) {
-      // hari baru
       S.date = todayStr();
       S.usedIds = [];
       S.currentTaskId = null;
     }
+
+    // Kalau sudah selesai hari ini, jangan pilih tugas baru
+    if (isDoneToday()) {
+      S.currentTaskId = null;
+      saveState(S);
+      return;
+    }
+
+    // Pilih tugas kalau belum ada
     if (!S.currentTaskId) {
       const lvl = levelFor(S.total);
-      const t = pickTask(lvl);
+      const t = pickTask(lvl, null);
       if (t) {
         S.currentTaskId = t.id;
         if (!S.usedIds.includes(t.id)) S.usedIds.push(t.id);
@@ -88,17 +107,31 @@
 
   // ---------- Render ----------
   function render() {
+    const done = isDoneToday();
     const t = currentTask();
-    if (!t) {
+
+    if (done) {
+      elTitle.textContent = 'Selesai untuk hari ini ✅';
+      elHint.textContent = `Streak: ${S.streak} hari. Kembali besok untuk tugas berikutnya.`;
+      taskCard.classList.add('is-done');
+    } else if (!t) {
       elTitle.textContent = 'Tidak ada tugas tersedia';
       elHint.textContent = 'Coba reset atau tambah data.';
+      taskCard.classList.remove('is-done');
     } else {
       elTitle.textContent = t.title;
       elHint.textContent = t.hint || '';
+      taskCard.classList.remove('is-done');
     }
+
     elStreak.textContent = S.streak;
     elTotal.textContent = S.total;
     elLevel.textContent = levelFor(S.total);
+
+    // Nonaktifkan tombol aksi kalau sudah selesai hari ini
+    taskCard.querySelectorAll('[data-act]').forEach(btn => {
+      btn.disabled = done;
+    });
   }
 
   function showMsg(text) {
@@ -110,37 +143,26 @@
 
   // ---------- Actions ----------
   function actDone() {
-    if (!S.currentTaskId) return;
-    if (S.lastDoneDate === todayStr()) {
+    if (isDoneToday()) {
       showMsg('Hari ini sudah selesai 👍');
       return;
     }
-    const yesterday = (() => {
-      const d = new Date();
-      d.setDate(d.getDate() - 1);
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    })();
+    if (!S.currentTaskId) return;
 
-    S.streak = (S.lastDoneDate === yesterday) ? S.streak + 1 : 1;
+    S.streak = (S.lastDoneDate === yesterdayStr()) ? S.streak + 1 : 1;
     S.lastDoneDate = todayStr();
     S.total += 1;
+    S.currentTaskId = null; // penting: bersihkan, jangan pilih tugas baru
     saveState(S);
-
-    // Siapkan tugas berikutnya
-    S.currentTaskId = null;
-    ensureTaskForToday();
     render();
     showMsg(`Mantap! Streak: ${S.streak} 🔥`);
   }
 
   function actSwap() {
+    if (isDoneToday()) { showMsg('Hari ini sudah selesai 👍'); return; }
     const lvl = levelFor(S.total);
-    const pool = window.TASKS.filter(t => t.level === lvl && t.id !== S.currentTaskId);
-    if (!pool.length) { showMsg('Tidak ada tugas lain.'); return; }
-    // hindari yang sudah pernah hari ini kalau bisa
-    const fresh = pool.filter(t => !S.usedIds.includes(t.id));
-    const arr = fresh.length ? fresh : pool;
-    const t = arr[Math.floor(Math.random() * arr.length)];
+    const t = pickTask(lvl, S.currentTaskId);
+    if (!t) { showMsg('Tidak ada tugas lain.'); return; }
     S.previousTaskId = S.currentTaskId;
     S.currentTaskId = t.id;
     if (!S.usedIds.includes(t.id)) S.usedIds.push(t.id);
@@ -150,8 +172,7 @@
   }
 
   function actHard() {
-    showMsg('Oke, turunkan level dulu ya.');
-    // paksa tugas level lebih rendah
+    if (isDoneToday()) { showMsg('Hari ini sudah selesai 👍'); return; }
     const lvl = Math.max(1, levelFor(S.total) - 1);
     const pool = window.TASKS.filter(t => t.level === lvl);
     if (!pool.length) return;
@@ -160,11 +181,12 @@
     if (!S.usedIds.includes(t.id)) S.usedIds.push(t.id);
     saveState(S);
     render();
+    showMsg('Level diturunkan sementara.');
   }
 
   taskCard.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-act]');
-    if (!btn) return;
+    if (!btn || btn.disabled) return;
     const act = btn.dataset.act;
     if (act === 'done') actDone();
     else if (act === 'swap') actSwap();
@@ -248,6 +270,14 @@
   applySavedTheme();
   ensureTaskForToday();
   render();
+
+  // Refresh otomatis kalau lewat tengah malam
+  setInterval(() => {
+    if (S.date !== todayStr()) {
+      ensureTaskForToday();
+      render();
+    }
+  }, 60 * 1000);
 
   // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
