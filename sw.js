@@ -37,8 +37,6 @@ self.addEventListener('fetch', (e) => {
               || url.hostname === 'fonts.gstatic.com';
   if (!isSameOrigin && !isFont) return;
 
-  // Network-first untuk semua: selalu coba ambil versi terbaru,
-  // fallback ke cache kalau offline
   e.respondWith(
     fetch(req)
       .then((res) => {
