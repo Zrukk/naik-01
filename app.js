@@ -68,6 +68,7 @@
   const elAffirm  = $('affirm');
   const elAffirmText = $('affirmText');
   const elAffirmStreak = $('affirmStreak');
+  const elConfetti = $('confetti');
 
   // ---------- Helpers ----------
   function levelFor(total) {
@@ -109,6 +110,100 @@
     return window.TASKS.find(t => t.id === S.currentTaskId) || null;
   }
 
+  // ---------- Haptic ----------
+  function haptic(pattern) {
+    if (!('vibrate' in navigator)) return;
+    try { navigator.vibrate(pattern); } catch {}
+  }
+
+  // ---------- Confetti ----------
+  let confettiRaf = null;
+
+  function runConfetti() {
+    if (!elConfetti) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const canvas = elConfetti;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+
+    const W = () => canvas.width / dpr;
+    const H = () => canvas.height / dpr;
+
+    const colors = ['#4CC47F', '#2F7A4D', '#F2C94C', '#EB5757', '#56CCF2', '#BB6BD9'];
+    const N = 90;
+    const particles = [];
+
+    for (let i = 0; i < N; i++) {
+      particles.push({
+        x: W() / 2 + (Math.random() - 0.5) * 80,
+        y: H() / 2 + (Math.random() - 0.5) * 30,
+        vx: (Math.random() - 0.5) * 10,
+        vy: -Math.random() * 12 - 4,
+        size: Math.random() * 6 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.3,
+        life: 0,
+        maxLife: 90 + Math.random() * 40,
+      });
+    }
+
+    const gravity = 0.4;
+
+    function tick() {
+      ctx.clearRect(0, 0, W(), H());
+      let alive = false;
+      for (const p of particles) {
+        p.life++;
+        if (p.life > p.maxLife) continue;
+        alive = true;
+        p.vy += gravity;
+        p.vx *= 0.995;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.vr;
+        const alpha = Math.max(0, 1 - p.life / p.maxLife);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+        ctx.restore();
+      }
+      if (alive) {
+        confettiRaf = requestAnimationFrame(tick);
+      } else {
+        ctx.clearRect(0, 0, W(), H());
+        confettiRaf = null;
+      }
+    }
+
+    if (confettiRaf) cancelAnimationFrame(confettiRaf);
+    confettiRaf = requestAnimationFrame(tick);
+    window.addEventListener('resize', resize, { once: true });
+  }
+
+  function stopConfetti() {
+    if (confettiRaf) {
+      cancelAnimationFrame(confettiRaf);
+      confettiRaf = null;
+    }
+    if (elConfetti) {
+      const ctx = elConfetti.getContext('2d');
+      ctx.clearRect(0, 0, elConfetti.width, elConfetti.height);
+    }
+  }
+
   // ---------- Affirmation ----------
   let affirmTimer = null;
 
@@ -124,14 +219,19 @@
     elAffirmStreak.textContent = S.streak > 1
       ? `${S.streak} hari berturut-turut 🔥`
       : 'Hari pertama dari yang baru ✨';
+
     elAffirm.hidden = false;
     elAffirm.classList.remove('closing');
+    haptic([20, 40, 20]);
+    requestAnimationFrame(() => runConfetti());
+
     clearTimeout(affirmTimer);
     affirmTimer = setTimeout(hideAffirmation, 2500);
   }
 
   function hideAffirmation() {
     if (!elAffirm || elAffirm.hidden) return;
+    stopConfetti();
     elAffirm.classList.add('closing');
     clearTimeout(affirmTimer);
     affirmTimer = setTimeout(() => {
