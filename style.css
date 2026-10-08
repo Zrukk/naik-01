@@ -285,3 +285,42 @@ main { display: grid; gap: 14px; }
   color: var(--mute);
   margin-top: 10px;
 }
+/* ---------- Note ---------- */
+.note-input {
+  width: 100%;
+  min-height: 84px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.note-input::placeholder { color: var(--mute); opacity: .8; }
+.note-input:focus {
+  border-color: var(--accent);
+  background: rgba(127,127,127,0.04);
+}
+
+.note-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--mute);
+  margin-top: 8px;
+  min-height: 16px;
+}
+
+#noteSaved {
+  transition: color .2s ease;
+}
+#noteSaved.saved {
+  color: var(--accent);
+  font-weight: 600;
+}
