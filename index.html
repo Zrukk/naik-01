@@ -1,19 +1,81 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Naik 0,1%</title>
-<meta name="theme-color" content="#0F6B6B">
+
+<meta name="description" content="Naik 0,1% setiap hari dengan satu tugas kecil.">
+<meta name="theme-color" content="#EEF2EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111511" media="(prefers-color-scheme: dark)">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Naik 0,1%">
+<meta property="og:description" content="Naik 0,1% setiap hari dengan satu tugas kecil.">
+<meta property="og:url" content="https://zrukk.github.io/naik-01/">
+<meta property="og:image" content="https://zrukk.github.io/naik-01/icon-512.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main id="app"></main>
+
+<header class="topbar">
+  <div class="brand">Naik <span>0,1%</span></div>
+  <button id="themeBtn" class="ghost" aria-label="Ganti tema">🌙</button>
+</header>
+
+<main>
+  <section class="card" id="taskCard">
+    <div class="label">Tugas hari ini</div>
+    <h2 id="taskTitle" class="task-title">Memuat…</h2>
+    <p id="taskHint" class="task-hint"></p>
+
+    <div class="actions">
+      <button class="btn primary" data-act="done" aria-label="Tandai tugas selesai">Sudah kukerjakan</button>
+      <button class="btn" data-act="swap" aria-label="Ganti tugas lain">Ganti tugas</button>
+      <button class="btn" data-act="hard" aria-label="Tandai tugas terlalu sulit hari ini">Terlalu sulit hari ini</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="label">Progres</div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value" id="streak">0</div>
+        <div class="stat-label">Streak</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="total">0</div>
+        <div class="stat-label">Selesai</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="level">1</div>
+        <div class="stat-label">Level</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="label">Pengaturan</div>
+    <div class="actions">
+      <button id="exportBtn" class="btn" aria-label="Ekspor data">Ekspor</button>
+      <button id="importBtn" class="btn" aria-label="Impor data">Impor</button>
+      <button id="resetBtn" class="btn danger" aria-label="Reset semua data">Reset</button>
+    </div>
+    <input id="importFile" type="file" accept="application/json" hidden>
+  </section>
+</main>
+
+<div id="msg" class="toast" aria-live="polite"></div>
+
 <script src="data.js"></script>
 <script src="app.js"></script>
 </body>
-</html>
+      </html>
