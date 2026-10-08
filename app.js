@@ -75,21 +75,18 @@
   }
 
   function ensureTaskForToday() {
-    // Hari berganti → reset daftar tugas harian
     if (S.date !== todayStr()) {
       S.date = todayStr();
       S.usedIds = [];
       S.currentTaskId = null;
     }
 
-    // Kalau sudah selesai hari ini, jangan pilih tugas baru
     if (isDoneToday()) {
       S.currentTaskId = null;
       saveState(S);
       return;
     }
 
-    // Pilih tugas kalau belum ada
     if (!S.currentTaskId) {
       const lvl = levelFor(S.total);
       const t = pickTask(lvl, null);
@@ -128,7 +125,6 @@
     elTotal.textContent = S.total;
     elLevel.textContent = levelFor(S.total);
 
-    // Nonaktifkan tombol aksi kalau sudah selesai hari ini
     taskCard.querySelectorAll('[data-act]').forEach(btn => {
       btn.disabled = done;
     });
@@ -152,7 +148,7 @@
     S.streak = (S.lastDoneDate === yesterdayStr()) ? S.streak + 1 : 1;
     S.lastDoneDate = todayStr();
     S.total += 1;
-    S.currentTaskId = null; // penting: bersihkan, jangan pilih tugas baru
+    S.currentTaskId = null;
     saveState(S);
     render();
     showMsg(`Mantap! Streak: ${S.streak} 🔥`);
@@ -193,8 +189,9 @@
     else if (act === 'hard') actHard();
   });
 
-  // ---------- Theme ----------
+  // ---------- Theme (dengan animasi circle reveal) ----------
   const themeBtn = $('themeBtn');
+  const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
   function applySavedTheme() {
     const saved = localStorage.getItem(THEME_KEY);
@@ -213,11 +210,50 @@
     themeBtn.textContent = isDark() ? '☀️' : '🌙';
   }
 
-  themeBtn.addEventListener('click', () => {
-    const next = isDark() ? 'light' : 'dark';
+  function setTheme(next) {
     document.documentElement.dataset.theme = next;
     localStorage.setItem(THEME_KEY, next);
     syncThemeIcon();
+  }
+
+  themeBtn.addEventListener('click', (e) => {
+    const next = isDark() ? 'light' : 'dark';
+
+    // Fallback: browser tanpa View Transitions API atau user minta reduced motion
+    if (!document.startViewTransition || prefersReducedMotion.matches) {
+      setTheme(next);
+      return;
+    }
+
+    // Titik asal animasi = pusat tombol
+    const rect = themeBtn.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    );
+
+    const transition = document.startViewTransition(() => {
+      setTheme(next);
+    });
+
+    transition.ready.then(() => {
+      document.documentElement.animate(
+        {
+          clipPath: [
+            `circle(0px at ${x}px ${y}px)`,
+            `circle(${endRadius}px at ${x}px ${y}px)`
+          ]
+        },
+        {
+          duration: 550,
+          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          pseudoElement: '::view-transition-new(root)'
+        }
+      );
+    });
   });
 
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -271,7 +307,6 @@
   ensureTaskForToday();
   render();
 
-  // Refresh otomatis kalau lewat tengah malam
   setInterval(() => {
     if (S.date !== todayStr()) {
       ensureTaskForToday();
