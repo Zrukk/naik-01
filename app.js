@@ -10,20 +10,34 @@
     currentTaskId: null,
     usedIds: [],
     streak: 0,
+    longestStreak: 0,
     total: 0,
     lastDoneDate: null,
     previousTaskId: null,
+    history: [], // array tanggal YYYY-MM-DD yang selesai
   });
 
-  function todayStr() {
-    const d = new Date();
+  function dateKey(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function todayStr() {
+    return dateKey(new Date());
   }
 
   function yesterdayStr() {
     const d = new Date();
     d.setDate(d.getDate() - 1);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return dateKey(d);
+  }
+
+  function migrate(s) {
+    if (!Array.isArray(s.history)) s.history = [];
+    if (typeof s.longestStreak !== 'number') s.longestStreak = s.streak || 0;
+    if (s.lastDoneDate && !s.history.includes(s.lastDoneDate)) {
+      s.history.push(s.lastDoneDate);
+    }
+    return s;
   }
 
   function loadState() {
@@ -31,7 +45,7 @@
       const raw = localStorage.getItem(KEY);
       if (!raw) return defaultState();
       const s = JSON.parse(raw);
-      return Object.assign(defaultState(), s);
+      return migrate(Object.assign(defaultState(), s));
     } catch {
       return defaultState();
     }
@@ -56,6 +70,9 @@
   const elLevel  = $('level');
   const elMsg    = $('msg');
   const taskCard = $('taskCard');
+  const elHeat   = $('heatmap');
+  const elHmTotal = $('hmTotal');
+  const elHmLongest = $('hmLongest');
 
   // ---------- Helpers ----------
   function levelFor(total) {
@@ -102,6 +119,69 @@
     return window.TASKS.find(t => t.id === S.currentTaskId) || null;
   }
 
+  // ---------- Heatmap ----------
+  function computeLongestStreak(history) {
+    if (!history || !history.length) return 0;
+    const sorted = [...history].sort();
+    let longest = 1;
+    let cur = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = new Date(sorted[i-1] + 'T00:00:00');
+      const now  = new Date(sorted[i]   + 'T00:00:00');
+      const diff = Math.round((now - prev) / 86400000);
+      if (diff === 1) {
+        cur += 1;
+        if (cur > longest) longest = cur;
+      } else if (diff > 1) {
+        cur = 1;
+      }
+    }
+    return longest;
+  }
+
+  function renderHeatmap() {
+    if (!elHeat) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Awal minggu = Minggu (getDay() === 0)
+    const startOfThisWeek = new Date(today);
+    startOfThisWeek.setDate(today.getDate() - today.getDay());
+
+    // Mulai 11 minggu sebelum minggu ini = 12 kolom total
+    const startDate = new Date(startOfThisWeek);
+    startDate.setDate(startOfThisWeek.getDate() - 11 * 7);
+
+    const historySet = new Set(S.history || []);
+    const todayKey = todayStr();
+    const frag = document.createDocumentFragment();
+
+    for (let i = 0; i < 84; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      const key = dateKey(d);
+
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.title = key;
+
+      if (key === todayKey) cell.classList.add('today');
+      if (d > today) {
+        cell.classList.add('future');
+      } else if (historySet.has(key)) {
+        cell.classList.add('done');
+      }
+      frag.appendChild(cell);
+    }
+
+    elHeat.innerHTML = '';
+    elHeat.appendChild(frag);
+
+    if (elHmTotal) elHmTotal.textContent = `${S.history.length} hari`;
+    if (elHmLongest) elHmLongest.textContent = `Rekor: ${computeLongestStreak(S.history)}`;
+  }
+
   // ---------- Render ----------
   function render() {
     const done = isDoneToday();
@@ -128,6 +208,8 @@
     taskCard.querySelectorAll('[data-act]').forEach(btn => {
       btn.disabled = done;
     });
+
+    renderHeatmap();
   }
 
   function showMsg(text) {
@@ -146,8 +228,10 @@
     if (!S.currentTaskId) return;
 
     S.streak = (S.lastDoneDate === yesterdayStr()) ? S.streak + 1 : 1;
+    if (S.streak > (S.longestStreak || 0)) S.longestStreak = S.streak;
     S.lastDoneDate = todayStr();
     S.total += 1;
+    if (!S.history.includes(S.lastDoneDate)) S.history.push(S.lastDoneDate);
     S.currentTaskId = null;
     saveState(S);
     render();
@@ -189,7 +273,7 @@
     else if (act === 'hard') actHard();
   });
 
-  // ---------- Theme (dengan animasi circle reveal) ----------
+  // ---------- Theme ----------
   const themeBtn = $('themeBtn');
   const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -216,28 +300,23 @@
     syncThemeIcon();
   }
 
-  themeBtn.addEventListener('click', (e) => {
+  themeBtn.addEventListener('click', () => {
     const next = isDark() ? 'light' : 'dark';
 
-    // Fallback: browser tanpa View Transitions API atau user minta reduced motion
     if (!document.startViewTransition || prefersReducedMotion.matches) {
       setTheme(next);
       return;
     }
 
-    // Titik asal animasi = pusat tombol
     const rect = themeBtn.getBoundingClientRect();
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
-
     const endRadius = Math.hypot(
       Math.max(x, window.innerWidth - x),
       Math.max(y, window.innerHeight - y)
     );
 
-    const transition = document.startViewTransition(() => {
-      setTheme(next);
-    });
+    const transition = document.startViewTransition(() => setTheme(next));
 
     transition.ready.then(() => {
       document.documentElement.animate(
